@@ -1,0 +1,204 @@
+browns to silver  transforamtion it is required incremental
+silver to gold trasnformation it is also incremental
+
+normal challenges faced
+
+sqlserver -> view point [praveen]
+
+your introduction[specific data fabric]
+i have worked on some to datafabric project
+
+approach - how would be increament setup from Bronze to silver and silver to gold
+
+brush-up data fabric knowledge
+simple - crips 
+----------------------------------------------------------------------------------------------------------------- 
+Question to prepare
+Q - the million of data pulling from source to bronze - to silver -> gold 
+if we do parallel processing it will impact fabric system what will be approached so that to avoid crash
+ANS -
+Controlled Parallelism
+
+Use limited parallel execution (batch count) instead of maximum concurrency
+Example: run 3–5 jobs in parallel, not all at once
+2️⃣ Dependency-Based Execution
+
+Use parent pipeline
+Sequence layers:
+Bronze → Silver → Gold
+Each layer starts only after the previous one completes
+
+3️⃣ Partition-Based Processing
+
+Process data in chunks (by date / batch / ID range)
+Avoid loading entire dataset at once
+
+4️⃣ Incremental Load Instead of Full Load
+
+Process only new/changed data
+Reduces compute and IO load
+
+5️⃣ Optimize Heavy Operations
+
+Avoid full table merge
+Run merge only on incremental data
+
+6️⃣ Workload Isolation
+
+Separate pipelines for:
+
+Ingestion
+Transformation
+Reporting
+
+“To prevent Fabric system overload, we use controlled parallelism, partition-based processing, and dependency-driven pipelines instead of fully parallel execution. This ensures scalability, stability, and optimal resource utilization.”
+
+Q considering tables not files how can we do parallel processing - yes
+Ans- 
+Use ForEach activity for multiple tables with controlled batch count to achieve parallel processing safely without overloading the system
+
+Q-incase bronze layer does not have modified date then how can we use incremental load
+let say in bronze layer we dont have modified date how can we do incremental load
+Ans -
+* think Lookup approach
+* We will act bronze as a stagging layer > create new bronze along with modified date /cdf enabled only for the tables required > transform and load to silver
+*Use Create HASH in Bronze
+SELECT *, md5(concat(CustomerName, Region, City, Revenue)) AS row_hash FROM bronze_table
+User merge  and insert sql logic - merge into
+it will be read all data but update only whicd is updated faster then full write
+
+“If the source system does not provide a ModifiedDate or watermark, we handle it at the Bronze layer by adding an ingestion timestamp or batch identifier during data load. This allows us to implement incremental processing downstream efficiently without relying on the source system.”
+
+
+Q why gold layer should warehouse why not lakehouse
+“Gold layer is typically implemented in a Warehouse because it is optimized for structured data, fast SQL queries, and high-concurrency reporting workloads. While Lakehouse is ideal for data processing and transformation in Bronze and Silver layers, Warehouse provides better performance and governance for business-ready data consumption.
+
+✅ ✅ ✅ WAREHOUSE vs LAKEHOUSE (COPY‑PASTE FORMAT ✅)
+
+✅ ✅ ✅ PURPOSE
+Warehouse
+
+Used for reporting and analytics
+Designed for business users and dashboards
+
+Lakehouse
+
+Used for data ingestion, storage, and transformation
+Designed for data engineers and data processing
+
+
+✅ ✅ ✅ DATA TYPE SUPPORT
+Warehouse
+
+Supports structured data only
+Works with relational tables
+
+Lakehouse
+
+Supports structured, semi-structured, and unstructured data
+Supports files like CSV, JSON, Parquet
+
+
+✅ ✅ ✅ ARCHITECTURE
+Warehouse
+
+Schema-on-write (data must fit structure before loading)
+Uses star/snowflake schema
+
+Lakehouse
+
+Schema-on-read (flexible structure)
+Stores raw and processed data
+
+
+✅ ✅ ✅ PERFORMANCE
+Warehouse
+
+Highly optimized for SQL queries
+Faster for reporting and dashboards
+Better indexing and query optimization
+
+Lakehouse
+
+Good for processing but not as fast for reporting
+Performance depends on Spark/Delta optimization
+
+
+✅ ✅ ✅ PROCESSING CAPABILITY
+Warehouse
+
+Limited transformation capability
+No Spark support
+
+Lakehouse
+
+Strong ETL and transformation capability
+Supports Spark, Notebooks, Dataflow
+
+
+✅ ✅ ✅ CONCURRENCY
+Warehouse
+
+Handles many users querying at the same time
+Ideal for Power BI reporting
+
+Lakehouse
+
+Moderate concurrency
+Not ideal for heavy BI workloads
+
+
+✅ ✅ ✅ DATA GOVERNANCE
+Warehouse
+
+Strong schema enforcement
+Clean and consistent business data
+
+Lakehouse
+
+Flexible schema
+More suitable for raw and intermediate data
+
+
+✅ ✅ ✅ USE CASE
+Warehouse
+
+Final reporting layer (Gold)
+Power BI dashboards
+Business analytics
+
+Lakehouse
+
+Bronze (raw data)
+Silver (cleaned/transformed data)
+Data engineering workloads
+
+
+✅ ✅ ✅ MEDALLION ARCHITECTURE USE
+Bronze → Lakehouse
+Silver → Lakehouse
+Gold → Warehouse
+
+✅ ✅ ✅ SIMPLE ANALOGY
+Lakehouse
+
+Kitchen → where data is prepared and transformed
+
+Warehouse
+
+Restaurant → where data is served to users
+
+
+✅ ✅ ✅ FINAL KEY DIFFERENCE
+Warehouse
+
+Optimized for consumption (reporting)
+Structured, fast, governed
+
+Lakehouse
+
+Optimized for processing (ingestion + transformation)
+Flexible, scalable
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     Q -1st load high incase source does not have modified date how can we take it  source to bronze to silver incremtally identified loading to silver 
+   how effectively can be create to logic to gold layer 
+“If the source system does not provide a ModifiedDate or watermark, we handle it at the Bronze layer by adding ingestion timestamps and hash values. The ingestion timestamp helps in identifying new batches, while the hash helps detect actual data changes. This allows us to implement incremental logic using merge operations in Silver without full reprocessing. Gold layer is then built using aggregated, business-ready data from Silver.
