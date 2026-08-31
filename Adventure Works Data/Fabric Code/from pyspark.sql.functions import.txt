@@ -1,0 +1,86 @@
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+
+df_bz_emp = spark.read.format("csv")\
+.option("header",True)\
+.option("inferSchema",True)\
+.load("Files/Employee/Employee.csv")
+display(df_bz_emp)
+
+# it is just update when data for null
+#from delta.tables import DeltaTable
+
+# Load Delta table
+#delta_table = DeltaTable.forName(spark, "Incremental_Load.bronze_employee")
+
+# Correct update (no execute)
+#delta_table.update(
+   # condition = "ingestion_date IS NULL",
+   # set = {
+   #     "ingestion_date": "current_timestamp()"
+  #  }
+#)
+
+df_bz_emp.write\
+.mode("overwrite")\
+.format("delta")\
+.option("delta.enableChangeDataFeed",True)\
+.saveAsTable("Incremental_Load.bronze_employee")
+
+df_src = spark.read.format("csv") \
+.option("header", True) \
+.option("inferSchema", True) \
+.load("Files/Employee/Employee.csv")
+display(df_src)
+
+df_tgt = spark.table("Incremental_Load.bronze_employee")
+display(df_tgt)
+
+
+from delta.tables import DeltaTable
+from pyspark.sql.functions import current_timestamp
+
+table_name = "Incremental_Load.bronze_employee"
+
+# Check if table exists
+if spark.catalog.tableExists(table_name):
+
+    # ✅ Incremental MERGE
+    delta_table = DeltaTable.forName(spark, table_name)
+
+    delta_table.alias("t").merge(
+        df_src.alias("s"),
+        "t.EmployeeId = s.EmployeeId"
+    ).whenMatchedUpdate(
+        condition="""
+            t.EmployeeName <> s.EmployeeName OR
+            t.Region <> s.Region OR
+            t.Dept <> s.Dept
+        """,
+        set={
+            "EmployeeName": "s.EmployeeName",
+            "Region": "s.Region",
+            "Dept": "s.Dept",
+            "ingestion_date": "current_timestamp()"
+        }
+    ).whenNotMatchedInsert(
+        values={
+            "EmployeeId": "s.EmployeeId",
+            "EmployeeName": "s.EmployeeName",
+            "Region": "s.Region",
+            "Dept": "s.Dept",
+            "ingestion_date": "current_timestamp()"
+        }
+    ).execute()
+
+else:
+    # ✅ First time load
+    df_src.withColumn("ingestion_date", current_timestamp()) \
+        .write \
+        .mode("overwrite") \
+        .format("delta") \
+        .saveAsTable(table_name)
+
+
+
+
